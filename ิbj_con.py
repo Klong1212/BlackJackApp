@@ -3,18 +3,22 @@ import random
 from typing import Tuple, List
 from collections import Counter
 
+
 class Action(Enum):
     HIT = "Hit"
     STAND = "Stand"
     DOUBLE = "Double"
 
+
 # --- Core Logic ---
+
 
 def _draw_card() -> int:
     """Draw a card value from an infinite deck approximation."""
     population = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     weights = [4, 4, 4, 4, 4, 4, 4, 4, 16, 4]
     return random.choices(population, weights)[0]
+
 
 def _apply_card(total: int, is_soft: bool, card: int) -> Tuple[int, bool]:
     """Add a drawn card to a running total, adjust for Ace (soft) handling."""
@@ -32,12 +36,16 @@ def _apply_card(total: int, is_soft: bool, card: int) -> Tuple[int, bool]:
         is_soft = False
     return total, is_soft
 
-def blackjack_advisor(player_total: int, dealer_card: int, is_soft_hand: bool = False) -> Action:
+
+def blackjack_advisor(
+    player_total: int, dealer_card: int, is_soft_hand: bool = False
+) -> Action:
     """Return recommended Action according to basic strategy."""
     if not (4 <= player_total <= 21):
         # Handle bust or weird inputs gracefully by defaulting to Stand if > 21
-        if player_total > 21: return Action.STAND
-    
+        if player_total > 21:
+            return Action.STAND
+
     # Soft-hand strategy
     if is_soft_hand:
         if player_total <= 17:
@@ -48,14 +56,17 @@ def blackjack_advisor(player_total: int, dealer_card: int, is_soft_hand: bool = 
             if player_total == 17:
                 return Action.DOUBLE if 3 <= dealer_card <= 6 else Action.HIT
         if player_total == 18:
-            if dealer_card in (2, 7, 8): return Action.STAND
-            if 3 <= dealer_card <= 6: return Action.DOUBLE
+            if dealer_card in (2, 7, 8):
+                return Action.STAND
+            if 3 <= dealer_card <= 6:
+                return Action.DOUBLE
             return Action.HIT
         if player_total >= 19:
             return Action.STAND
 
     # Hard-hand strategy
-    if player_total <= 8: return Action.HIT
+    if player_total <= 8:
+        return Action.HIT
     if player_total == 9:
         return Action.DOUBLE if 3 <= dealer_card <= 6 else Action.HIT
     if player_total in (10, 11):
@@ -64,29 +75,38 @@ def blackjack_advisor(player_total: int, dealer_card: int, is_soft_hand: bool = 
         return Action.DOUBLE if dealer_card <= 9 else Action.HIT
     if 12 <= player_total <= 16:
         if dealer_card <= 6:
-            if player_total == 12 and dealer_card in (2, 3): return Action.HIT
+            if player_total == 12 and dealer_card in (2, 3):
+                return Action.HIT
             return Action.STAND
         return Action.HIT
-    if player_total >= 17: return Action.STAND
+    if player_total >= 17:
+        return Action.STAND
 
     return Action.HIT
 
+
 def action_to_text(action: Action) -> str:
-    if action == Action.HIT: return "Hit (จั่วเพิ่ม)"
-    if action == Action.STAND: return "Stand (อยู่)"
-    if action == Action.DOUBLE: return "Double (ลงเงินเพิ่ม/จั่ว 1 ใบ)"
+    if action == Action.HIT:
+        return "Hit (จั่วเพิ่ม)"
+    if action == Action.STAND:
+        return "Stand (อยู่)"
+    if action == Action.DOUBLE:
+        return "Double (ลงเงินเพิ่ม/จั่ว 1 ใบ)"
     return "Unknown"
 
+
 # --- Simulation & Shoe Management ---
+
 
 def build_shoe(num_decks: int) -> list:
     """Return a list of card values representing a shoe with num_decks decks."""
     shoe = []
     for _ in range(num_decks):
-        shoe.extend([2, 3, 4, 5, 6, 7, 8, 9] * 4) # 2-9
-        shoe.extend([10] * 16) # 10, J, Q, K
+        shoe.extend([2, 3, 4, 5, 6, 7, 8, 9] * 4)  # 2-9
+        shoe.extend([10] * 16)  # 10, J, Q, K
         shoe.extend([11] * 4)  # Ace
     return shoe
+
 
 def remove_known_cards(shoe: list, known_cards: list) -> None:
     """Remove known card values from the shoe in-place."""
@@ -94,13 +114,16 @@ def remove_known_cards(shoe: list, known_cards: list) -> None:
         try:
             shoe.remove(card)
         except ValueError:
-            pass # Card already removed or logic error in tracking
+            pass  # Card already removed or logic error in tracking
+
 
 def draw_from_shoe(shoe: list) -> int:
-    if not shoe: raise RuntimeError("Shoe is empty")
+    if not shoe:
+        raise RuntimeError("Shoe is empty")
     card = random.choice(shoe)
     shoe.remove(card)
     return card
+
 
 def compute_total_and_soft(cards: list) -> Tuple[int, bool]:
     total = 0
@@ -109,22 +132,26 @@ def compute_total_and_soft(cards: list) -> Tuple[int, bool]:
         total, soft = _apply_card(total, soft, c)
     return total, soft
 
+
 def calculate_hilo(seen_cards: list) -> Tuple[int, float]:
     """Calculate Running Count and True Count."""
     running_count = 0
     for card in seen_cards:
         if 2 <= card <= 6:
             running_count += 1
-        elif card == 10 or card == 11: # 10, J, Q, K, A
+        elif card == 10 or card == 11:  # 10, J, Q, K, A
             running_count -= 1
         # 7, 8, 9 are 0
     return running_count
 
-def estimate_win_probabilities_multi(players_hands: list,
-                                     dealer_upcard: int,
-                                     num_decks: int = 6,
-                                     simulations: int = 5000,
-                                     cards_seen_history: list = None) -> Tuple[list, Counter, Counter]:
+
+def estimate_win_probabilities_multi(
+    players_hands: list,
+    dealer_upcard: int,
+    num_decks: int = 6,
+    simulations: int = 5000,
+    cards_seen_history: list = None,
+) -> Tuple[list, Counter, Counter]:
     """
     Simulate outcomes considering BOTH current hands AND previously seen cards (cards_seen_history).
     """
@@ -140,7 +167,7 @@ def estimate_win_probabilities_multi(players_hands: list,
 
     # Create the base shoe logic
     base_shoe_full = build_shoe(num_decks)
-    
+
     # Identify cards currently on table
     current_round_cards = [dealer_upcard]
     for h in players_hands:
@@ -148,14 +175,14 @@ def estimate_win_probabilities_multi(players_hands: list,
 
     # Validate that our history + current cards don't exceed the deck
     # (Simple check, in a real game we assume input is correct)
-    
+
     for _ in range(simulations):
         # 1. Reconstruct the shoe state at the START of this round
         shoe = base_shoe_full.copy()
-        
+
         # 2. Remove cards from previous rounds (History)
         remove_known_cards(shoe, cards_seen_history)
-        
+
         # 3. Remove cards currently on the table
         remove_known_cards(shoe, current_round_cards)
 
@@ -163,12 +190,12 @@ def estimate_win_probabilities_multi(players_hands: list,
         try:
             hidden = draw_from_shoe(shoe)
         except RuntimeError:
-            hidden = _draw_card() # Fallback
-        
+            hidden = _draw_card()  # Fallback
+
         hidden_card_counts[hidden] += 1
 
         # 5. Simulate Players
-        player_results = [] # (busted, total)
+        player_results = []  # (busted, total)
         for idx, hand in enumerate(players_hands):
             total, soft = compute_total_and_soft(hand)
             action = blackjack_advisor(total, dealer_upcard, soft)
@@ -176,28 +203,32 @@ def estimate_win_probabilities_multi(players_hands: list,
             if action == Action.DOUBLE:
                 try:
                     card = draw_from_shoe(shoe)
-                except RuntimeError: card = _draw_card()
+                except RuntimeError:
+                    card = _draw_card()
                 total, soft = _apply_card(total, soft, card)
             else:
                 while action == Action.HIT and total < 22:
                     try:
                         card = draw_from_shoe(shoe)
-                    except RuntimeError: card = _draw_card()
+                    except RuntimeError:
+                        card = _draw_card()
                     total, soft = _apply_card(total, soft, card)
-                    if total > 21: break
+                    if total > 21:
+                        break
                     action = blackjack_advisor(total, dealer_upcard, soft)
-            
+
             player_results.append((total > 21, total))
 
         # 6. Simulate Dealer
         d_total = dealer_upcard
-        d_soft = (dealer_upcard == 11)
+        d_soft = dealer_upcard == 11
         d_total, d_soft = _apply_card(d_total, d_soft, hidden)
-        
+
         while d_total < 17 or (d_total == 17 and d_soft):
             try:
                 card = draw_from_shoe(shoe)
-            except RuntimeError: card = _draw_card()
+            except RuntimeError:
+                card = _draw_card()
             d_total, d_soft = _apply_card(d_total, d_soft, card)
 
         dealer_totals[d_total] += 1
@@ -207,23 +238,31 @@ def estimate_win_probabilities_multi(players_hands: list,
             if busted:
                 losses[i] += 1
             else:
-                if d_total > 21: wins[i] += 1
-                elif d_total < p_total: wins[i] += 1
-                elif d_total == p_total: pushes[i] += 1
-                else: losses[i] += 1
+                if d_total > 21:
+                    wins[i] += 1
+                elif d_total < p_total:
+                    wins[i] += 1
+                elif d_total == p_total:
+                    pushes[i] += 1
+                else:
+                    losses[i] += 1
 
     results = []
     for i in range(num_players):
-        results.append((wins[i]/simulations, pushes[i]/simulations, losses[i]/simulations))
+        results.append(
+            (wins[i] / simulations, pushes[i] / simulations, losses[i] / simulations)
+        )
 
     return results, dealer_totals, hidden_card_counts
 
+
 # --- Main Interaction Loop ---
 
+
 def main():
-    print("=== Blackjack Pro Advisor & Simulator (ต่อเนื่อง) ===")
+    print("=== Blackjack Pro Advisor & Simulator (Interactive) ===")
     print("ระบบจะจำไพ่ที่ออกไปแล้ว เพื่อความแม่นยำในรอบถัดไป (Card Counting)")
-    
+
     try:
         num_decks = int(input("จำนวนเด็ค (เช่น 6, 8): ") or "6")
         num_players = int(input("จำนวนผู้เล่น (รวมคุณ): ") or "1")
@@ -235,18 +274,17 @@ def main():
     # Game State
     cards_history = []  # Cards seen in previous rounds
     round_num = 1
-    
+
     while True:
         print(f"\n--- Round {round_num} ---")
-        
+
         # Calculate Hi-Lo info
         running_count = calculate_hilo(cards_history)
-        # Estimate remaining decks roughly
         total_cards = num_decks * 52
         cards_left = max(1, total_cards - len(cards_history))
         decks_left = cards_left / 52
         true_count = running_count / decks_left if decks_left > 0 else 0
-        
+
         print(f" สถานะสำรับ: ออกไปแล้ว {len(cards_history)}/{total_cards} ใบ")
         print(f" Card Counting: Running = {running_count}, True = {true_count:.2f}")
         if true_count >= 1.5:
@@ -258,72 +296,131 @@ def main():
 
         # Get inputs for this round
         players_hands = []
-        current_round_cards = [] # To add to history later
+        current_round_cards = []  # To add to history later
 
         try:
             dealer_input = input("ไพ่หงายเจ้ามือ (2-11): ").strip()
-            if dealer_input.lower() in ['q', 'quit', 'exit']: break
-            if dealer_input.lower() == 'r': 
+            if dealer_input.lower() in ["q", "quit", "exit"]:
+                break
+            if dealer_input.lower() == "r":
                 print("\n*** สับไพ่ใหม่ (Reshuffling) ***")
                 cards_history = []
                 round_num = 1
                 continue
-                
+
             dealer_upcard = int(dealer_input)
             current_round_cards.append(dealer_upcard)
 
             for i in range(num_players):
-                raw = input(f"ไพ่ผู้เล่น {i+1} (เช่น '10 6'): ").strip()
+                raw = input(f"ไพ่ผู้เล่น {i+1} เริ่มต้น (เช่น '10 6'): ").strip()
                 if raw:
                     cards = [int(x) for x in raw.split()]
                     players_hands.append(cards)
                     current_round_cards.extend(cards)
                 else:
-                    players_hands.append([]) # No cards? Skip logic
+                    players_hands.append([])  # No cards? Skip logic
 
         except ValueError:
             print("ข้อมูลไพ่ผิดพลาด กรุณาลองใหม่")
             continue
 
-        # Advice Phase
-        print("\n>> คำแนะนำเบื้องต้น (Basic Strategy):")
+        # --- Interactive Advice & Action Phase ---
+        print("\n>> คำแนะนำและการเล่น (อัปเดตไพ่ในมือ):")
         for idx, hand in enumerate(players_hands):
-            if not hand: continue
-            total, soft = compute_total_and_soft(hand)
-            action = blackjack_advisor(total, dealer_upcard, soft)
-            print(f" ผู้เล่น {idx+1} ({total} {'Soft' if soft else ''}): \033[1m{action_to_text(action)}\033[0m")
+            if not hand:
+                continue
 
-        # Simulation Phase
-        print(f"\n>> กำลังจำลองผลลัพธ์ {sims} ครั้ง (อิงจากไพ่ที่เหลือ)...")
+            while True:
+                total, soft = compute_total_and_soft(hand)
+
+                # หากแต้ม 21 หรือเกิน ให้จบรอบผู้เล่นนี้ทันที
+                if total >= 21:
+                    print(f"\n ผู้เล่น {idx+1} ไพ่ {hand} (รวม {total}) -> จบตา")
+                    break
+
+                # -- [เพิ่มใหม่] จำลองผลลัพธ์แบบ Real-time ก่อนให้คำแนะนำ --
+                temp_results, _, _ = estimate_win_probabilities_multi(
+                    players_hands,
+                    dealer_upcard,
+                    num_decks=num_decks,
+                    simulations=sims,
+                    cards_seen_history=cards_history,
+                )
+                win_prob, push_prob, lose_prob = temp_results[idx]
+
+                action = blackjack_advisor(total, dealer_upcard, soft)
+
+                print(
+                    f"\n ผู้เล่น {idx+1} ไพ่ปัจจุบัน: {hand} (รวม {total} {'Soft' if soft else ''})"
+                )
+                print(
+                    f" โอกาสชนะ: {win_prob*100:.1f}%, เสมอ: {push_prob*100:.1f}%, แพ้: {lose_prob*100:.1f}%"
+                )
+                print(f" แนะนำให้: \033[1m{action_to_text(action)}\033[0m")
+
+                choice = (
+                    input(" เลือก Action (h=Hit, s=Stand, d=Double) หรือกด Enter เพื่ออยู่: ")
+                    .strip()
+                    .lower()
+                )
+
+                if choice == "s" or choice == "":
+                    print(" -> Stand (อยู่)")
+                    break
+                elif choice in ("h", "d"):
+                    try:
+                        new_card = int(input(" ไพ่ใบใหม่ที่จั่วได้ (2-11): ").strip())
+                        hand.append(new_card)
+                        current_round_cards.append(
+                            new_card
+                        )  # เก็บประวัติไพ่เพื่ออัปเดต Card Counting
+
+                        if choice == "d":
+                            total, soft = compute_total_and_soft(hand)
+                            print(
+                                f" -> Double (จั่วใบเดียวจบ) | ไพ่ปัจจุบัน: {hand} (รวม {total})"
+                            )
+                            break
+                    except ValueError:
+                        print(" [!] กรุณาใส่ตัวเลข 2-11")
+                else:
+                    print(" [!] กรุณาพิมพ์ h, s, d หรือกด Enter")
+
+        # --- Simulation Phase (Final Summary) ---
+        print(f"\n>> สรุปโอกาสชนะเมื่อทุกคนเล่นเสร็จสิ้น (ก่อนเจ้ามือหงายไพ่)...")
         results, d_totals, hidden_counts = estimate_win_probabilities_multi(
-            players_hands, 
-            dealer_upcard, 
-            num_decks=num_decks, 
+            players_hands,
+            dealer_upcard,
+            num_decks=num_decks,
             simulations=sims,
-            cards_seen_history=cards_history # Pass history here
+            cards_seen_history=cards_history,
         )
 
         for idx, (w, p, l) in enumerate(results):
-            if not players_hands[idx]: continue
-            print(f" ผู้เล่น {idx+1}: โอกาสชนะ {w*100:.1f}% | เสมอ {p*100:.1f}% | แพ้ {l*100:.1f}%")
+            if not players_hands[idx]:
+                continue
+            print(
+                f" ผู้เล่น {idx+1}: โอกาสชนะ {w*100:.1f}% | เสมอ {p*100:.1f}% | แพ้ {l*100:.1f}%"
+            )
 
         # Update History
-        # ในความเป็นจริง เราควรถามไพ่ที่จั่วเพิ่ม (Hit cards) ด้วยเพื่อให้แม่นยำที่สุด
-        # แต่เพื่อความง่าย เราจะบันทึกไพ่เริ่มต้นลง History ก่อน
         cards_history.extend(current_round_cards)
-        
-        # Optional: Ask for extra cards seen (Hits)
-        extra = input("\nจบรอบ - มีไพ่อื่นๆ โผล่มาเพิ่มหรือไม่? (ระบุเลข หรือ Enter ผ่าน): ").strip()
+
+        # Ask for extra cards seen
+        extra = input(
+            "\nจบรอบ - เจ้ามือเปิดไพ่คว่ำ หรือมีการจั่วเพิ่มใดๆ อีกไหม? (ระบุเลขเพื่อบันทึกลงกอง หรือ Enter ผ่าน): "
+        ).strip()
         if extra:
             try:
                 extra_cards = [int(x) for x in extra.split()]
                 cards_history.extend(extra_cards)
-                print(f" บันทึกไพ่เพิ่ม {len(extra_cards)} ใบ")
+                print(f" บันทึกไพ่ของเจ้ามือเพิ่ม {len(extra_cards)} ใบ")
             except:
                 print(" ใส่ผิด ข้ามไป...")
 
-        print("\n" + "="*40)
+        print("\n" + "=" * 40)
         round_num += 1
+
 
 if __name__ == "__main__":
     main()
